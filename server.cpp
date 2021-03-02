@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
-#include <regex.h>
+#include <sys/select.h>
 /* You will to add includes here */
 #define DEBUG
 #define PROTOCOL "HELLO 1\n"
@@ -80,18 +80,14 @@ int main(int argc, char *argv[])
   char sendBuf[256];
   bool clientIsActive = false;
 
-  char expression[] = "^[A-Za-z_]+$";
-  regex_t regularexpression;
-  int reti;
-  reti = regcomp(&regularexpression, expression, REG_EXTENDED);
-  if (reti)
-  {
-    fprintf(stderr, "Could not compile regex.\n");
-    exit(1);
-  }
-
-  int matches = 0;
-  regmatch_t items;
+  fd_set currentSockets;
+  fd_set readySockets;
+  FD_ZERO(&currentSockets);
+  FD_ZERO(&readySockets);
+  FD_SET(sockfd, &currentSockets);
+  FD_SET(STDIN_FILENO, &currentSockets);
+  int fdMax = sockfd;
+  int nfds = 0;
   while (true)
   {
     if (clientIsActive == false)
@@ -113,22 +109,12 @@ int main(int argc, char *argv[])
     {
       continue;
     }
-    else if (strstr(recvBuf, "NICK"))
+    else if (strstr(recvBuf, "NICK "))
     {
       //Set up a new client space thingy.
-      reti = regexec(&regularexpression, recvBuf, matches, &items, 0);
-      if (!reti)
-      {
-        printf("Nick is accepted.\n");
-      }
-      else
-      {
-        printf("Nick is not accepted.\n");
-      }
-      printf("%s", recvBuf);
+      printf("Name is allowed.\n");
     }
   }
-  regfree(&regularexpression);
   close(sockfd);
   return 0;
 

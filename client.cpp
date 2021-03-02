@@ -3,12 +3,14 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
-
+#include <regex.h>
+#include <iostream>
 /* You will to add includes here */
 #define DEBUG
 #define PROTOCOL "HELLO 1\n"
@@ -28,16 +30,35 @@ int main(int argc, char *argv[])
   char *Destport = strtok(NULL, delim);
   char *Destnick = strtok(argv[2], delim);
 
-  if (Desthost == NULL || Destport == NULL || Destnick == NULL) 
+  if (Desthost == NULL || Destport == NULL || Destnick == NULL)
   {
     printf("Wrong format\n");
     exit(0);
   }
-  if(strlen(Destnick)>12)
+  if (strlen(Destnick) > 12)
   {
     printf("Error: Name too long. Max 12 character. \n");
     exit(0);
   }
+  char expression[] = "[A-Za-z0-9_]";
+  regex_t regularexpression;
+  int reti;
+  reti = regcomp(&regularexpression, expression, REG_EXTENDED);
+  if (reti)
+  {
+    fprintf(stderr, "Could not compile regex.\n");
+    exit(1);
+  }
+
+  int matches = 0;
+  regmatch_t items;
+  reti = regexec(&regularexpression, argv[2], matches, &items, 0);
+  if (reti)
+  {
+    printf("Nick is not accepted.\n");
+    exit(0);
+  }
+  regfree(&regularexpression);
   //int port = atoi(Destport);
   addrinfo sa, *si, *p;
   memset(&sa, 0, sizeof(sa));
@@ -76,21 +97,68 @@ int main(int argc, char *argv[])
   freeaddrinfo(si);
 
   char recvBuf[256];
-  char sendBuf[256];
+  char sendBuf[260];
   int bytes;
+  fd_set currentSockets;
+  fd_set readySockets;
+  FD_ZERO(&currentSockets);
+  FD_ZERO(&readySockets);
+  FD_SET(sockfd, &currentSockets);
+  FD_SET(STDIN_FILENO, &currentSockets);
+  int fdMax = sockfd;
+  int nfds = 0;
+  char writeBuf[256];
   while (true)
   {
-    bytes = recv(sockfd, recvBuf, sizeof(recvBuf), 0);
-    if (bytes == -1)
+    readySockets = currentSockets;
+    if (fdMax < sockfd)
     {
-      printf("Failed to recive. \n");
-      continue;
+      fdMax = sockfd;
     }
-    else if (strstr(recvBuf, PROTOCOL) != nullptr)
+    nfds = select(fdMax + 1, &readySockets, NULL, NULL, NULL);
+    if (nfds == -1)
     {
-      printf("Serverprotocol accepted, Protocol: %s", recvBuf);
-      sprintf(sendBuf,"NICK%s ",Destnick);
+      printf("Something went wrong with select\n");
+      break;
+    }
+    if (FD_ISSET(STDIN_FILENO, &readySockets))
+    {
+      memset(sendBuf, 0, sizeof(sendBuf));
+      memset(writeBuf, 0, sizeof(writeBuf));
+      std::cin.getline(writeBuf, sizeof(writeBuf));
+      sprintf(sendBuf, "MSG %s", writeBuf);
       send(sockfd, sendBuf, strlen(sendBuf), 0);
+      FD_CLR(STDIN_FILENO, &readySockets);
+    }
+    if (FD_ISSET(sockfd, &readySockets))
+    {
+      memset(recvBuf, 0, sizeof(recvBuf));
+      bytes = recv(sockfd, recvBuf, sizeof(recvBuf), 0);
+      if (bytes == -1)
+      {
+        printf("Failed to recive. \n");
+        continue;
+      }
+      else if (strstr(recvBuf, PROTOCOL) != nullptr)
+      {
+        memset(sendBuf, 0, sizeof(sendBuf));
+        printf("Serverprotocol accepted, Protocol: %s", recvBuf);
+        sprintf(sendBuf, "NICK %s", Destnick);
+        send(sockfd, sendBuf, strlen(sendBuf), 0);
+      }
+      else if (strstr(recvBuf, "OK") != nullptr)
+      {
+        printf("Name accepted\n");
+      }
+      else if (strstr(recvBuf, "ERR") != nullptr)
+      {
+        printf("%s", recvBuf);
+      }
+      else
+      {
+        printf("%s\n", recvBuf);
+      }
+      FD_CLR(sockfd, &readySockets);
     }
   }
   close(sockfd);
