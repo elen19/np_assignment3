@@ -96,8 +96,11 @@ int main(int argc, char *argv[])
   setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
   freeaddrinfo(si);
 
-  char recvBuf[256];
+  char recvBuf[273];
   char sendBuf[260];
+  char messageBuf[256];
+  char workType[10];
+  char otherName[12];
   int bytes;
   fd_set currentSockets;
   fd_set readySockets;
@@ -126,9 +129,19 @@ int main(int argc, char *argv[])
       memset(sendBuf, 0, sizeof(sendBuf));
       memset(writeBuf, 0, sizeof(writeBuf));
       std::cin.getline(writeBuf, sizeof(writeBuf));
-      sprintf(sendBuf, "MSG %s", writeBuf);
-      send(sockfd, sendBuf, strlen(sendBuf), 0);
-      FD_CLR(STDIN_FILENO, &readySockets);
+      std::cin.clear();
+      if (strlen(writeBuf) > 256)
+      {
+        printf("Message too long, try again.\n");
+        FD_CLR(STDIN_FILENO, &readySockets);
+        break;
+      }
+      else
+      {
+        sprintf(sendBuf, "MSG %s", writeBuf);
+        send(sockfd, sendBuf, strlen(sendBuf), 0);
+        FD_CLR(STDIN_FILENO, &readySockets);
+      }
     }
     if (FD_ISSET(sockfd, &readySockets))
     {
@@ -138,6 +151,19 @@ int main(int argc, char *argv[])
       {
         printf("Failed to recive. \n");
         continue;
+      }
+      else
+      {
+        memset(workType, 0, sizeof(workType));
+        sscanf(recvBuf, "%s" ,workType);
+      }
+      if (strstr(workType, "MSG"))
+      {
+        memset(messageBuf,0,sizeof(messageBuf));
+        memset(workType, 0, sizeof(workType));
+        memset(otherName,0,sizeof(otherName));
+        sscanf(recvBuf,"%s %s %[^\n]", workType, otherName,messageBuf);
+        printf("%s: %s\n",otherName, messageBuf);
       }
       else if (strstr(recvBuf, PROTOCOL) != nullptr)
       {
@@ -154,10 +180,7 @@ int main(int argc, char *argv[])
       {
         printf("%s", recvBuf);
       }
-      else
-      {
-        printf("%s\n", recvBuf);
-      }
+
       FD_CLR(sockfd, &readySockets);
     }
   }
