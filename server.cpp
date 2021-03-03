@@ -19,7 +19,6 @@
 struct cli
 {
   int sockID;
-  struct sockaddr_in addr;
   char cliName[12];
 };
 std::vector<cli> clients;
@@ -49,6 +48,7 @@ int main(int argc, char *argv[])
   memset(&sa, 0, sizeof(sa));
   sa.ai_family = AF_UNSPEC;
   sa.ai_socktype = SOCK_STREAM;
+  sa.ai_flags=AI_PASSIVE;
   struct timeval tv;
   tv.tv_sec = 5;
   tv.tv_usec = 0;
@@ -95,9 +95,9 @@ int main(int argc, char *argv[])
   FD_ZERO(&currentSockets);
   FD_ZERO(&readySockets);
   FD_SET(sockfd, &currentSockets);
-  FD_SET(STDIN_FILENO, &currentSockets);
   int fdMax = sockfd;
   int nfds = 0;
+  int reciver;
   while (true)
   {
     readySockets = currentSockets;
@@ -115,7 +115,8 @@ int main(int argc, char *argv[])
     nfds = select(fdMax + 1, &readySockets, NULL, NULL, NULL);
     if (nfds == -1)
     {
-      printf("Something went wrong with select");
+      printf("Something went wrong with select.\n");
+      printf("%s\n",strerror(errno));
       break;
     }
     if (FD_ISSET(sockfd, &readySockets))
@@ -128,31 +129,38 @@ int main(int argc, char *argv[])
       {
         struct cli newClient;
         newClient.sockID = connfd;
-        newClient.addr = client;
         FD_SET(newClient.sockID, &currentSockets);
         clients.push_back(newClient);
         char buf[sizeof(PROTOCOL)] = PROTOCOL;
         send(connfd, buf, strlen(buf), 0);
         printf("Server protocol %s", buf);
       }
-      FD_CLR(sockfd,&readySockets);
+      FD_CLR(sockfd, &readySockets);
     }
     for (size_t i = 0; i < clients.size(); i++)
     {
       if (FD_ISSET(clients.at(i).sockID, &readySockets))
       {
         memset(recvBuf, 0, sizeof(recvBuf));
-        if (recv(clients.at(i).sockID, recvBuf, sizeof(recvBuf), 0) == -1)
+        reciver = recv(clients.at(i).sockID, recvBuf, sizeof(recvBuf), 0);
+        if (reciver == -1)
         {
+          FD_CLR(clients.at(i).sockID, &readySockets);
           continue;
+        }
+        else if (reciver == 0)
+        {
+          close(clients.at(i).sockID);
+          clients.erase(clients.begin() + i);
+          FD_CLR(clients.at(i).sockID, &readySockets);
         }
         else if (strstr(recvBuf, "MSG ") != nullptr)
         {
           memset(sendBuf, 0, sizeof(sendBuf));
-          memset(workType,0,sizeof(workType));
-          memset(messageBuf,0,sizeof(messageBuf));
-          sscanf(recvBuf,"%s %[^\n]",workType,messageBuf);
-          sprintf(sendBuf, "%s %s %s",workType, clients.at(i).cliName, messageBuf);
+          memset(workType, 0, sizeof(workType));
+          memset(messageBuf, 0, sizeof(messageBuf));
+          sscanf(recvBuf, "%s %[^\n]", workType, messageBuf);
+          sprintf(sendBuf, "%s %s %s", workType, clients.at(i).cliName, messageBuf);
           for (size_t j = 0; j < clients.size(); j++)
           {
             if (j != i)
@@ -164,11 +172,11 @@ int main(int argc, char *argv[])
         else if (strstr(recvBuf, "NICK ") != nullptr)
         {
           //Set up a new client space thingy.
-          sscanf(recvBuf,"%s %s", workType, clients.at(i).cliName);
+          sscanf(recvBuf, "%s %s", workType, clients.at(i).cliName);
           printf("Clients name is: %s\n", clients.at(i).cliName);
           printf("Name is allowed.\n");
         }
-        FD_CLR(clients.at(i).sockID,&readySockets);
+        
       }
     }
   }

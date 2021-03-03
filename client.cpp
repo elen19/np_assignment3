@@ -11,10 +11,16 @@
 #include <netdb.h>
 #include <regex.h>
 #include <iostream>
+#include <signal.h>
 /* You will to add includes here */
 #define DEBUG
 #define PROTOCOL "HELLO 1\n"
 
+void intSignal(int sig)
+{
+  printf("\n");
+  exit(0);
+}
 int main(int argc, char *argv[])
 {
 
@@ -111,6 +117,7 @@ int main(int argc, char *argv[])
   int fdMax = sockfd;
   int nfds = 0;
   char writeBuf[256];
+  signal(SIGINT, intSignal);
   while (true)
   {
     readySockets = currentSockets;
@@ -155,15 +162,15 @@ int main(int argc, char *argv[])
       else
       {
         memset(workType, 0, sizeof(workType));
-        sscanf(recvBuf, "%s" ,workType);
+        sscanf(recvBuf, "%s", workType);
       }
       if (strstr(workType, "MSG"))
       {
-        memset(messageBuf,0,sizeof(messageBuf));
+        memset(messageBuf, 0, sizeof(messageBuf));
         memset(workType, 0, sizeof(workType));
-        memset(otherName,0,sizeof(otherName));
-        sscanf(recvBuf,"%s %s %[^\n]", workType, otherName,messageBuf);
-        printf("%s: %s\n",otherName, messageBuf);
+        memset(otherName, 0, sizeof(otherName));
+        sscanf(recvBuf, "%s %s %[^\n]", workType, otherName, messageBuf);
+        printf("%s: %s\n", otherName, messageBuf);
       }
       else if (strstr(recvBuf, PROTOCOL) != nullptr)
       {
