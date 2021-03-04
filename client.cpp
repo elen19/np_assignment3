@@ -65,7 +65,6 @@ int main(int argc, char *argv[])
     exit(0);
   }
   regfree(&regularexpression);
-  //int port = atoi(Destport);
   addrinfo sa, *si, *p;
   memset(&sa, 0, sizeof(sa));
   sa.ai_family = AF_INET;
@@ -170,7 +169,10 @@ int main(int argc, char *argv[])
         memset(workType, 0, sizeof(workType));
         memset(otherName, 0, sizeof(otherName));
         sscanf(recvBuf, "%s %s %[^\n]", workType, otherName, messageBuf);
-        printf("%s: %s\n", otherName, messageBuf);
+        if (strstr(otherName, Destnick) == nullptr)
+        {
+          printf("%s: %s\n", otherName, messageBuf);
+        }
       }
       else if (strstr(recvBuf, PROTOCOL) != nullptr)
       {
@@ -186,6 +188,7 @@ int main(int argc, char *argv[])
       else if (strstr(recvBuf, "ERR") != nullptr)
       {
         printf("%s", recvBuf);
+        exit(0);
       }
 
       FD_CLR(sockfd, &readySockets);
