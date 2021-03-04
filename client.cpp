@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
         memset(workType, 0, sizeof(workType));
         memset(otherName, 0, sizeof(otherName));
         sscanf(recvBuf, "%s %s %[^\n]", workType, otherName, messageBuf);
-        if (strstr(otherName, Destnick) == nullptr)
+        if (strcmp(otherName, Destnick) != 0)
         {
           printf("%s: %s\n", otherName, messageBuf);
         }
@@ -185,7 +185,16 @@ int main(int argc, char *argv[])
       {
         printf("Name accepted\n");
       }
-      else if (strstr(recvBuf, "ERR") != nullptr)
+      else if(strstr(recvBuf,"SERVER CLOSED") != nullptr)
+      {
+        printf("%s", recvBuf);
+        exit(0);
+      }
+      else if(strstr(recvBuf,"ERROR") != nullptr)
+      {
+        printf("%s",recvBuf);
+      }
+      else if (strstr(recvBuf, "ERR ") != nullptr)
       {
         printf("%s", recvBuf);
         exit(0);

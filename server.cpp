@@ -26,9 +26,9 @@ std::vector<cli> clients;
 void intSignal(int sig)
 {
   printf("\n");
-  for(size_t i=0;i<clients.size();i++)
+  for (size_t i = 0; i < clients.size(); i++)
   {
-    send(clients.at((int)i).sockID,"ERROR Server closed\n",strlen("ERROR Server closed\n"),0);
+    send(clients.at((int)i).sockID, "SERVER CLOSED\n", strlen("SERVER CLOSED\n"), 0);
   }
   exit(0);
 }
@@ -153,7 +153,6 @@ int main(int argc, char *argv[])
             reciver = recv(i, recvBuf, sizeof(recvBuf), 0);
             if (reciver <= 0)
             {
-              printf("Closing\n");
               close(i);
               for (size_t j = 0; j < clients.size(); j++)
               {
@@ -198,11 +197,28 @@ int main(int argc, char *argv[])
                   if (i == clients.at(j).sockID)
                   {
                     sscanf(recvBuf, "%s %s", workType, clients.at(j).cliName);
-                    printf("Clients name is: %s\n", clients.at(j).cliName);
-                    printf("Name is allowed.\n");
-                    break;
+                    bool sameName = false;
+                    for (size_t k = 0; k < clients.size() && !sameName; k++)
+                    {
+                      if (k != j && strcmp(clients.at(k).cliName, clients.at(j).cliName) == 0 && strlen(clients.at(k).cliName) == strlen(clients.at(j).cliName))
+                      {
+                        sameName = true;
+                        send(i, "ERR Name is already in use on server.\n", strlen("ERR Name is already in use on server.\n"), 0);
+                      }
+                    }
+                    if (sameName == false)
+                    {
+                      printf("Clients name is: %s\n", clients.at(j).cliName);
+                      printf("Name is allowed.\n");
+                      send(i, "OK\n", strlen("OK\n"), 0);
+                      break;
+                    }
                   }
                 }
+              }
+              else
+              {
+                send(i, "ERROR Wrong format on the message sent.\n", strlen("ERROR Wrong format on the message sent.\n"), 0);
               }
             }
           }
