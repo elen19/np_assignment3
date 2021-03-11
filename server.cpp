@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
                 {
                   if (i == clients.at(j).sockID)
                   {
-                    sprintf(sendBuf, "%s %s %s", workType, clients.at(j).cliName, messageBuf);
+                    sprintf(sendBuf, "%s %s %s\n", workType, clients.at(j).cliName, messageBuf);
                     break;
                   }
                 }
