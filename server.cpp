@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     printf("Couldn't create/bind socket.\n");
     exit(0);
   }
-  setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
+  //setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
   freeaddrinfo(si);
 
   if (listen(sockfd, 5) != 0)
@@ -108,6 +108,8 @@ int main(int argc, char *argv[])
   int fdMax = sockfd;
   int nfds = 0;
   int reciver;
+  bool sameName = false;
+  int cC = -1; //cC = currentClient
   signal(SIGINT, intSignal);
   while (true)
   {
@@ -192,12 +194,23 @@ int main(int argc, char *argv[])
               else if (strstr(recvBuf, "NICK ") != nullptr)
               {
                 //Set up a new client space thingy.
+                sameName = false;
                 for (size_t j = 0; j < clients.size(); j++)
                 {
                   if (i == clients.at(j).sockID)
                   {
-                    sscanf(recvBuf, "%s %s", workType, clients.at(j).cliName);
-                    bool sameName = false;
+                    cC = j;
+                    char nameLenght[15];
+                    sscanf(recvBuf, "%s %s", workType, nameLenght);
+                    if (strlen(nameLenght) > 12)
+                    {
+                      send(i, "ERR Name too long! Max 12 characters.\n", strlen("ERR Name too long! Max 12 characters.\n"), 0);
+                      sameName = true;
+                    }
+                    else
+                    {
+                      sscanf(recvBuf, "%s %s", workType, clients.at(j).cliName);
+                    }
                     for (size_t k = 0; k < clients.size() && !sameName; k++)
                     {
                       if (k != j && strcmp(clients.at(k).cliName, clients.at(j).cliName) == 0 && strlen(clients.at(k).cliName) == strlen(clients.at(j).cliName))
