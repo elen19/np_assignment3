@@ -59,9 +59,6 @@ int main(int argc, char *argv[])
   sa.ai_family = AF_UNSPEC;
   sa.ai_socktype = SOCK_STREAM;
   sa.ai_flags = AI_PASSIVE;
-  struct timeval tv;
-  tv.tv_sec = 5;
-  tv.tv_usec = 0;
   if (int rv = getaddrinfo(Desthost, Destport, &sa, &si) != 0)
   {
     fprintf(stderr, "%s\n", gai_strerror(rv));
@@ -87,7 +84,6 @@ int main(int argc, char *argv[])
     printf("Couldn't create/bind socket.\n");
     exit(0);
   }
-  //setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
   freeaddrinfo(si);
 
   if (listen(sockfd, 5) != 0)
@@ -109,7 +105,6 @@ int main(int argc, char *argv[])
   int nfds = 0;
   int reciver;
   bool sameName = false;
-  int cC = -1; //cC = currentClient
   signal(SIGINT, intSignal);
   while (true)
   {
@@ -199,7 +194,6 @@ int main(int argc, char *argv[])
                 {
                   if (i == clients.at(j).sockID)
                   {
-                    cC = j;
                     char nameLenght[15];
                     sscanf(recvBuf, "%s %s", workType, nameLenght);
                     if (strlen(nameLenght) > 12)
