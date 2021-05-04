@@ -13,6 +13,8 @@
 #include <sys/select.h>
 #include <vector>
 #include <signal.h>
+#include <regex.h>
+#include <string>
 /* You will to add includes here */
 #define DEBUG
 #define PROTOCOL "HELLO 1\n"
@@ -91,11 +93,24 @@ int main(int argc, char *argv[])
     printf("Failed to listen.\n");
     exit(0);
   }
+  char expression[] = "^[A-Za-z0-9_]+$";
+  regex_t regularexpression;
+  int reti;
+  reti = regcomp(&regularexpression, expression, REG_EXTENDED);
+  if (reti)
+  {
+    fprintf(stderr, "Could not compile regex.\n");
+    exit(1);
+  }
+
+  int matches = 0;
+  regmatch_t items;
   len = sizeof(client);
   char recvBuf[260];
   char sendBuf[273];
   char workType[4];
   char messageBuf[256];
+  char nameLenght[15];
   fd_set currentSockets;
   fd_set readySockets;
   FD_ZERO(&currentSockets);
@@ -144,25 +159,28 @@ int main(int argc, char *argv[])
         }
         else
         {
-          if (clients.size() > 0)
+          std::string temp = {};
+          memset(recvBuf, 0, sizeof(recvBuf));
+          reciver = recv(i, recvBuf, sizeof(recvBuf), 0);
+          if (reciver <= 0)
           {
-            memset(recvBuf, 0, sizeof(recvBuf));
-            reciver = recv(i, recvBuf, sizeof(recvBuf), 0);
-            if (reciver <= 0)
+            close(i);
+            for (size_t j = 0; j < clients.size(); j++)
             {
-              close(i);
-              for (size_t j = 0; j < clients.size(); j++)
+              if (i == clients[j].sockID)
               {
-                if (i == clients[j].sockID)
-                {
-                  clients.erase(clients.begin() + j);
-                  FD_CLR(i, &currentSockets);
-                  break;
-                }
+                clients.erase(clients.begin() + j);
+                FD_CLR(i, &currentSockets);
+                break;
               }
-              continue;
             }
-            else
+            continue;
+          }
+          else
+          {
+            temp = recvBuf;
+            
+            while (strlen(recvBuf) > 0)
             {
               if (strstr(recvBuf, "MSG ") != nullptr)
               {
@@ -178,13 +196,13 @@ int main(int argc, char *argv[])
                     break;
                   }
                 }
-                if (clients.size() > 0)
+
+                for (size_t j = 0; j < clients.size(); j++)
                 {
-                  for (size_t j = 0; j < clients.size(); j++)
-                  {
-                    send(clients.at(j).sockID, sendBuf, strlen(sendBuf), 0);
-                  }
+                  send(clients.at(j).sockID, sendBuf, strlen(sendBuf), 0);
                 }
+                temp.erase(0, strlen(workType) + strlen(messageBuf) +2 );
+                strcpy(recvBuf, temp.c_str());
               }
               else if (strstr(recvBuf, "NICK ") != nullptr)
               {
@@ -194,11 +212,12 @@ int main(int argc, char *argv[])
                 {
                   if (i == clients.at(j).sockID)
                   {
-                    char nameLenght[15];
-                    sscanf(recvBuf, "%s %s", workType, nameLenght);
+
+                    memset(nameLenght, 0, sizeof(nameLenght));
+                    sscanf(recvBuf, "%s %[^\n]", workType, nameLenght);
                     if (strlen(nameLenght) > 12)
                     {
-                      send(i, "ERR Name too long! Max 12 characters.\n", strlen("ERR Name too long! Max 12 characters.\n"), 0);
+                      send(i, "ERROR Name too long! Max 12 characters.\n", strlen("ERROR Name too long! Max 12 characters.\n"), 0);
                       sameName = true;
                     }
                     else
@@ -210,18 +229,32 @@ int main(int argc, char *argv[])
                       if (k != j && strcmp(clients.at(k).cliName, clients.at(j).cliName) == 0 && strlen(clients.at(k).cliName) == strlen(clients.at(j).cliName))
                       {
                         sameName = true;
-                        send(i, "ERR Name is already in use on server.\n", strlen("ERR Name is already in use on server.\n"), 0);
+                        send(i, "ERROR Name is already in use on server.\n", strlen("ERROR Name is already in use on server.\n"), 0);
                       }
                     }
                     if (sameName == false)
                     {
-                      printf("Clients name is: %s\n", clients.at(j).cliName);
-                      printf("Name is allowed.\n");
-                      send(i, "OK\n", strlen("OK\n"), 0);
-                      break;
+
+                      reti = regexec(&regularexpression, clients.at(j).cliName, matches, &items, 0);
+                      if (reti)
+                      {
+                        printf("Nick is not accepted.\n");
+                        send(i, "ERROR Illegal characters used!\n", strlen("ERROR Illegal characters used!\n"), 0);
+                      }
+                      else
+                      {
+
+                        printf("Clients name is: %s\n", clients.at(j).cliName);
+                        printf("Name is allowed.\n");
+                        send(i, "OK\n", strlen("OK\n"), 0);
+                        break;
+                      }
                     }
+                    printf("%s\n", nameLenght);
                   }
                 }
+                temp.erase(0, strlen(workType) + strlen(nameLenght) +2);
+                strcpy(recvBuf, temp.c_str());  
               }
               else
               {
@@ -234,6 +267,7 @@ int main(int argc, char *argv[])
       }
     }
   }
+  regfree(&regularexpression);
   close(sockfd);
   return 0;
 
